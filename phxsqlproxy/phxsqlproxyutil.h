@@ -11,6 +11,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <inttypes.h>
 
 namespace phxsqlproxy {
@@ -23,7 +24,9 @@ bool IsNonBlock(int sock_fd);
 
 int SetNonBlock(int sock_fd);
 
-void SetAddr(const char *ip, const unsigned short port, struct sockaddr_in &addr);
+int SetAddr(const char * ip, const unsigned short port, struct sockaddr_in & addr);
+
+int SetAddr6(const char * ip, const unsigned short port, struct sockaddr_in6 & addr);
 
 bool IsAuthReqPkg(const char * buf, int len);
 
@@ -33,8 +36,16 @@ uint64_t GetTimestampMS();
 
 void GetMysqlBufDebugString(const char * buf, int len, std::string & debug_str);
 
+int SockAddrToIPPort(struct sockaddr * addr, std::string & ip, int & port);
+
+int GetSockName(int fd, std::string & ip, int & port);
+
 int GetPeerName(int fd, std::string & ip, int & port);
 
 uint64_t DecodedLengthBinary(const char * buf, int len, int & len_field_size);
+
+std::string UIntToStr(uint32_t i);
+
+std::vector<std::string> SplitStr(const std::string & str, const std::string & delim);
 
 }

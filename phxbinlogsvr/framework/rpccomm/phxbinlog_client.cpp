@@ -68,7 +68,7 @@ int PhxBinlogClient::SendBinLog(const string &oldgtid, const string &newgtid, co
     }
 
     uint32_t old_timeout = stub_interface_->GetTimeOutMS();
-    stub_interface_->SetTimeOutMS(-1);
+    stub_interface_->SetTimeOutMS(0); // never timeout
     int ret = stub_interface_->SendBinLog(buffer);
     stub_interface_->SetTimeOutMS(old_timeout);
     return ret;
@@ -91,16 +91,24 @@ int PhxBinlogClient::GetLastSendGtid(const string &uuid, string *last_send_gtid)
 
 int PhxBinlogClient::GetMaster(string *ip, uint32_t *expire_time) {
     uint32_t t_version = 0;
+    return GetMaster(ip, expire_time, &t_version);
+}
+
+int PhxBinlogClient::GetMaster(string *ip, uint32_t *expire_time, uint32_t *version) {
     string resp_buffer;
     int ret = stub_interface_->GetMasterInfoFromGlobal(&resp_buffer);
     if (ret == 0) {
-        if (!DecodeMasterInfo(resp_buffer, ip, expire_time, &t_version)) {
+        if (!DecodeMasterInfo(resp_buffer, ip, expire_time, version)) {
             ColorLogError("%s:%d decode fail", __func__, __LINE__);
             return phxbinlog::BUFFER_FAIL;
         }
-        LogVerbose("%s get ip %s expire time %u version %u", __func__, ip->c_str(), *expire_time, t_version);
     }
     return ret;
+}
+
+int PhxBinlogClient::GetGlobalMaster(const std::vector<std::string> &iplist, std::string *ip,
+                                     uint32_t *expire_time, uint32_t *version, bool require_majority) {
+    return GetGlobalMaster(iplist, stub_interface_->port_, ip, expire_time, version, require_majority);
 }
 
 int PhxBinlogClient::GetLocalLastSendGtid(const string &uuid, string *last_send_gtid) {
@@ -120,7 +128,7 @@ int PhxBinlogClient::GetLocalMaster(string *ip, uint32_t *expire_time, uint32_t 
 }
 
 int PhxBinlogClient::GetGlobalMaster(const vector<string> &iplist, const uint32_t &port, string *ip,
-                                     uint32_t *expire_time, uint32_t *version) {
+                                     uint32_t *expire_time, uint32_t *version, bool require_majority) {
     uint32_t ok_num = 0;
     vector < pair<string, int> > resp_bufferlist;
     int ret = stub_interface_->GetMasterInfoFromLocal(iplist, port, &resp_bufferlist);
@@ -128,7 +136,7 @@ int PhxBinlogClient::GetGlobalMaster(const vector<string> &iplist, const uint32_
         for (size_t i = 0; i < resp_bufferlist.size(); ++i) {
             if (resp_bufferlist[i].second) {
                 ret = resp_bufferlist[i].second;
-                ColorLogError("%s fail, ip %s ret %d", __func__, iplist[i].c_str(), ret);
+                continue;
             } else {
                 uint32_t t_version = 0;
                 string t_ip;
@@ -149,13 +157,20 @@ int PhxBinlogClient::GetGlobalMaster(const vector<string> &iplist, const uint32_
                 }
             }
         }
-        if ((ok_num << 1) >= iplist.size()) {
+        // master may not up to date if require_majority == false
+        if ((!require_majority && ok_num > 0) || (ok_num << 1) >= iplist.size()) {
+            ColorLogInfo("%s resp num %u get ip %s version %u expiretime %u",
+                         __func__, ok_num, ip->c_str(), *version, *expire_time);
             return phxbinlog::OK;
         }
     }
 
-    ColorLogInfo("%s resp num %u get ip %s version %u expiretime %u", __func__, ok_num, ip->c_str(), *version,
-                 *expire_time);
+    for (size_t i = 0; i < resp_bufferlist.size(); ++i) {
+        if (resp_bufferlist[i].second) {
+            ret = resp_bufferlist[i].second;
+            ColorLogError("%s get master fail, ip %s ret %d",__func__, iplist[i].c_str(), ret);
+        }
+    }
 
     return ret;
 }
@@ -314,14 +329,18 @@ bool PhxBinlogClient::DecodeMasterInfo(const string &decode_buffer, string *ip, 
         return false;
     }
 
-    LogVerbose("%s master ip %s, update time %u expire time %u", __func__, master_info.ip().c_str(),
-               master_info.update_time(), master_info.expire_time());
-
     *ip = master_info.ip();
     if (master_info.update_time() == 0) {
         *expire_time = master_info.expire_time();
     } else {
-        uint32_t delta_time = master_info.expire_time() - master_info.update_time();
+        uint32_t delta_time = 0;
+        if( master_info.current_time() ) {
+            delta_time = master_info.expire_time() - master_info.current_time();
+        }
+        else {
+            delta_time = master_info.expire_time() - time (NULL);
+        }
+
         *expire_time = time(NULL) + delta_time;
     }
     *version = master_info.version();
@@ -330,4 +349,3 @@ bool PhxBinlogClient::DecodeMasterInfo(const string &decode_buffer, string *ip, 
 }
 
 }
-

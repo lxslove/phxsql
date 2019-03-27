@@ -27,7 +27,6 @@ using phxsql::ColorLogError;
 namespace phxbinlog {
 
 bool operator <(const EventDataInfo &info1, const EventDataInfo &info2) {
-    LogVerbose("%s instance id %llu %llu", __func__, info1.instance_id(), info2.instance_id());
     return info1.instance_id() < info2.instance_id();
 }
 
@@ -157,8 +156,8 @@ int EventUUIDHandler::UpdateEventUUIDInfoByGTID(const string &gtid, const EventD
 }
 
 int EventUUIDHandler::UpdateEventUUIDInfoByUUID(const string &uuid, const EventDataInfo &data_info) {
-    LogVerbose("%s update gtid uuid %s-%s instance id %llu", __func__, uuid.c_str(), data_info.gtid().c_str(),
-               data_info.instance_id());
+    //LogVerbose("%s update gtid uuid %s-%s instance id %llu", __func__, uuid.c_str(), data_info.gtid().c_str(),
+     //          data_info.instance_id());
     map_uuid_[uuid] = data_info;
     newest_info_ = data_info;
     return OK;
@@ -179,13 +178,26 @@ string EventUUIDHandler::GetLastestGTIDByGTID(const string &gtid) {
     return GetLastestGTIDByUUID(uuid);
 }
 
+int EventUUIDHandler::GetLastestGTIDEventByGTID(const string &gtid, EventDataInfo *data_info) {
+    string uuid = GtidHandler::GetUUIDByGTID(gtid);
+    return GetLastestGTIDEventByUUID(uuid, data_info);
+}
+
 string EventUUIDHandler::GetLastestGTIDByUUID(const string &uuid) {
     auto it = map_uuid_.find(uuid);
     if (it == map_uuid_.end())
         return "";
-    LogVerbose("%s find gtid %s by uuid %s", __func__, it->second.gtid().c_str(), uuid.c_str());
     return it->second.gtid();
 }
+
+int EventUUIDHandler::GetLastestGTIDEventByUUID(const string &uuid, EventDataInfo *data_info) {
+    auto it = map_uuid_.find(uuid);
+    if (it == map_uuid_.end())
+        return 1;
+    *data_info=it->second;
+	return OK;
+}
+
 
 string EventUUIDHandler::GetLastestUpdateGTID() {
     return newest_info_.gtid();
@@ -251,4 +263,3 @@ int EventUUIDHandler::ParseFromString(const string &buffer) {
 }
 
 }
-

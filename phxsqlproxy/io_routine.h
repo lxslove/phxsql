@@ -10,36 +10,29 @@
 
 #pragma once
 
-#include "co_routine.h"
-#include "phxcoroutine.h"
-#include <string>
 #include <stack>
 
-using std::stack;
+#include "phxcoroutine.h"
+
+#include "phxsqlproxyconfig.h"
+#include "io_router.h"
+#include "io_channel.h"
+#include "proxy_protocol_handler.h"
 
 namespace phxsqlproxy {
 
 #define MAX_ACTIVE_FD_PER_ROUTINE 1024
 
-class PHXSqlProxyConfig;
-class MasterCache;
-typedef struct tagWorkerConfig WorkerConfig_t;
 class IORoutineMgr;
-class MembershipCache;
 
 class IORoutine : public Coroutine {
+ protected:
+    IORoutine(IORoutineMgr * routine_mgr);
 
  public:
-    IORoutine(IORoutineMgr * routine_mgr, MasterCache * master_cache, MembershipCache * membership_cache);
-
     virtual ~IORoutine();
 
     void SetClientFD(int fd);
-
- protected:
-    MasterCache * GetMasterCache();
-
-    MembershipCache * GetMembershipCache();
 
  private:
     int run();
@@ -48,85 +41,30 @@ class IORoutine : public Coroutine {
 
     void ReleaseFD(int & fd);
 
-    int ConnectDest();
-
-    int WriteToDest(int dest_fd, const char * buf, int write_size);
-
-    int TransMsgDirect(int source_fd, int dest_fd, struct pollfd[], int nfds);
-
-//monitor func
- private:
-    void TimeCostMonitor(uint64_t cost);
-
-    void ByteFromConnectDestSvr(uint32_t byte_size);
-
-    void ByteFromMysqlClient(uint32_t byte_size);
-
- private:
-    void ClearVariablesAndStatus();
-
- private:
-    virtual int GetDestEndpoint(std::string & dest_ip, int & dest_port) = 0;
-
-    virtual WorkerConfig_t * GetWorkerConfig() = 0;
-
-    virtual bool CanExecute(const char * buf, int size);
-
-    int FakeClientIPInAuthBuf(char * buf, size_t buf_len);
-
-    void GetDBNameFromAuthBuf(const char * buf, int buf_size);
-
-    void GetDBNameFromReqBuf(const char * buf, int buf_size);
  protected:
     uint64_t req_uniq_id_;
 
-    PHXSqlProxyConfig * config_;
-    std::string connect_dest_;
-    int connect_port_;
-    bool is_authed_;
-    std::string db_name_;
-
- private:
-
-    IORoutineMgr * io_routine_mgr_;
-    MasterCache * master_cache_;
-    MembershipCache * membership_cache_;
+    IORoutineMgr         * io_routine_mgr_;
+    IORouter             * io_router_;
+    IOChannel            * io_channel_;
+    ProxyProtocolHandler * proxy_protocol_handler_;
 
     int client_fd_;
     int sqlsvr_fd_;
-    std::string client_ip_;
-    uint64_t last_received_request_timestamp_;
-    uint64_t last_sent_request_timestamp_;
-    int last_read_fd_;
 };
 
 class MasterIORoutine : public IORoutine {
  public:
-    MasterIORoutine(IORoutineMgr * routine_mgr, MasterCache * master_cache, MembershipCache * membership_cache);
+    MasterIORoutine(IORoutineMgr * routine_mgr, GroupStatusCache * group_status_cache);
 
-    virtual ~MasterIORoutine();
-
- private:
-    int GetDestEndpoint(std::string & dest_ip, int & dest_port);
-
-    bool CanExecute(const char * buf, int size);
-
-    WorkerConfig_t * GetWorkerConfig();
-
+    ~MasterIORoutine() override;
 };
 
 class SlaveIORoutine : public IORoutine {
  public:
-    SlaveIORoutine(IORoutineMgr * routine_mgr, MasterCache * master_cache, MembershipCache * membership_cache);
+    SlaveIORoutine(IORoutineMgr * routine_mgr, GroupStatusCache * group_status_cache);
 
-    virtual ~SlaveIORoutine();
-
- private:
-    int GetDestEndpoint(std::string & dest_ip, int & dest_port);
-
-    WorkerConfig_t * GetWorkerConfig();
-
-    bool CanExecute(const char * buf, int size);
+    ~SlaveIORoutine() override;
 };
 
 class IORoutineMgr {

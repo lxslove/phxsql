@@ -56,9 +56,9 @@ AgentMonitor::~AgentMonitor() {
 
 int AgentMonitor::Process() {
     LogVerbose("monitor running");
+	uint32_t last_check = 0;
     while (1) {
         bool check_master = false;
-        uint32_t last_check = 0;
         {
             struct timeval now;
             gettimeofday(&now, NULL);
@@ -142,9 +142,11 @@ int AgentMonitor::Process() {
         MasterMonitor::CheckMySqlUserInfo(option_);
         uint32_t now = time(NULL);
         if (check_master && now - last_check >= option_->GetBinLogSvrConfig()->GetMonitorCheckStatusPeriod()) {
-            CheckMasterTimeOut();
+            int ret = CheckMasterTimeOut();
             CheckCheckPointFiles();
-            last_check = now;
+			if(ret == 0) {
+				last_check = now;
+			}
         }
     }
     return OK;
@@ -162,7 +164,7 @@ int AgentMonitor::CheckRunning() {
     if (read_only == "OFF") {
         if (is_master) {
             MasterInfo master_info;
-            int ret = master_manager_->GetMasterInfo(&master_info);
+            ret = master_manager_->GetMasterInfo(&master_info);
             if (ret == OK) {
                 if (master_info.export_ip().empty()) {
                     //master is running?
@@ -265,7 +267,7 @@ int AgentMonitor::CheckMasterInit() {
         vector < string > gtid_list;
         int ret = MasterMonitor::GetMySQLMaxGTIDList(option_, &gtid_list);
         if (ret)
-            return false;
+            return ret;
 
         //get the max gtid in agent
         string last_gtid = event_manager_->GetNewestGTID();
@@ -299,38 +301,44 @@ int AgentMonitor::CheckMasterInit() {
             return ret;
         ColorLogInfo("%s relay log has existed, relaylog size %zu", __func__, gtid_list.size());
 
-        return CheckSlaveRunningStatus();
+        //return CheckSlaveRunningStatus();
     }
 
     return ret;
 }
 
 int AgentMonitor::IsGTIDCompleted(const Option *option, EventManager *event_manager) {
-    vector < string > gtid_list;
-    int ret = MasterMonitor::GetMySQLMaxGTIDList(option, &gtid_list);
-    if (ret) {
-        ColorLogWarning("%s get sql info fail, skip", __func__);
-        return SVR_FAIL;
-    }
+	vector < string > gtid_list;
+	int ret = MasterMonitor::GetMySQLMaxGTIDList(option, &gtid_list);
+	if (ret) {
+		ColorLogWarning("%s get sql info fail, skip", __func__);
+		return SVR_FAIL;
+	}
 
-    string last_gtid = event_manager->GetNewestGTID();
-    if (MasterMonitor::IsGTIDCompleted(gtid_list, last_gtid)) {
-    } else {
-        return DATA_EMPTY;
-    }
+	string last_gtid = event_manager->GetNewestGTID();
+	if (MasterMonitor::IsGTIDCompleted(gtid_list, last_gtid)) {
+	} else {
+		return DATA_EMPTY;
+	}
 
-    if (AgentExternalMonitor::IsHealthy()) {
-        return OK;
-    }
-    ColorLogWarning("%s external monitor not healthy", __func__);
-    return SVR_FAIL;
+	return OK;
 }
 
 int AgentMonitor::CheckMasterTimeOut() {
-    int ret = IsGTIDCompleted(option_, event_manager_);
-    if (ret < 0) {
-        return ret;
+	bool is_master = master_manager_->CheckMasterBySvrID(option_->GetBinLogSvrConfig()->GetEngineSvrID());
+    int ret = OK;
+	if(!is_master) {
+		ret=IsGTIDCompleted(option_, event_manager_);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+    
+	if (!AgentExternalMonitor::IsHealthy()) {
+		ColorLogWarning("%s external monitor not healthy", __func__);
+        return SVR_FAIL;
     }
+
     if (ret == OK) {
         int ret = master_agent_->SetMaster(option_->GetBinLogSvrConfig()->GetEngineIP());
         if (ret == MASTER_CONFLICT) {
@@ -347,11 +355,7 @@ int AgentMonitor::CheckMasterTimeOut() {
 }
 
 int AgentMonitor::CheckSlaveRunningStatus() {
-    if (IsSlaveReady()) {
-        return SlaveMonitor::CheckSlaveRunningStatus(option_);
-    }
-    return MYSQL_FAIL;
-}
+        return SlaveMonitor::CheckSlaveRunningStatus(option_);}
 
 bool AgentMonitor::IsSlaveReady() {
 
@@ -380,4 +384,3 @@ void AgentMonitor::CheckCheckPointFiles() {
 }
 
 }
-

@@ -40,11 +40,16 @@ void PHXSqlProxyConfig::ReadConfig() {
     is_open_debug_mode_ = GetInteger("Server", "OpenDebugMode", 0);
     is_only_proxy_ = GetInteger("Server", "OnlyProxy", 0);
     is_master_enable_read_port_ = GetInteger("Server", "MasterEnableReadPort", 0);
+    is_enable_try_best_ = GetInteger("Server", "TryBestIfBinlogsvrDead", 0);
     freqctrl_config_ = Get("Server", "FreqCtrlConfig", "");
     log_level_ = GetInteger("Server", "LogLevel", 3);
     log_file_max_size_ = GetInteger("Server", "LogFileMaxSize", 1600);
     log_path_ = Get("Server", "LogFilePath", "/tmp/");
     sleep_ = GetInteger("Server", "Sleep", 0);
+    connect_timeout_ms_ = GetInteger("Server", "ConnectTimeoutMs", 200);
+    write_timeout_ms_ = GetInteger("Server", "WriteTimeoutMs", 1000);
+    proxy_protocol_ = GetInteger("Server", "ProxyProtocol", 0);
+    proxy_protocol_timeout_ms_ = GetInteger("Server", "ProxyProtocolTimeoutMs", 1000);
 
     /*
      phxsql_config_ = PhxMySqlConfig :: GetDefault();
@@ -81,20 +86,28 @@ WorkerConfig_t * PHXSqlProxyConfig::GetSlaveWorkerConfig() {
 void PHXSqlProxyConfig::ReadMasterWorkerConfig(WorkerConfig_t * worker_config) {
     worker_config->listen_ip_ = svr_ip_.c_str();
     worker_config->port_ = svr_port_;
+    worker_config->proxy_port_ = GetInteger("Server", "MasterProxyPort", 0);
     worker_config->fork_proc_count_ = GetInteger("Server", "MasterForkProcCnt", 1);
     worker_config->worker_thread_count_ = GetInteger("Server", "MasterWorkerThread", 3);
     worker_config->io_routine_count_ = GetInteger("Server", "MasterIORoutineCnt", 1000);
+    if (!worker_config->proxy_port_) {
+        worker_config->proxy_port_ = worker_config->port_ + 2;
+    }
     worker_config->is_master_port_ = true;
 }
 
 void PHXSqlProxyConfig::ReadSlaveWorkerConfig(WorkerConfig_t * worker_config) {
     worker_config->listen_ip_ = svr_ip_.c_str();
     worker_config->port_ = GetInteger("Server", "SlavePort", 0);
+    worker_config->proxy_port_ = GetInteger("Server", "SlaveProxyPort", 0);
     worker_config->fork_proc_count_ = GetInteger("Server", "SlaveForkProcCnt", 1);
     worker_config->worker_thread_count_ = GetInteger("Server", "SlaveWorkerThread", 3);
     worker_config->io_routine_count_ = GetInteger("Server", "SlaveIORoutineCnt", 1000);
     if (!worker_config->port_) {
         worker_config->port_ = svr_port_ + 1;
+    }
+    if (!worker_config->proxy_port_) {
+        worker_config->proxy_port_ = worker_config->port_ + 2;
     }
     worker_config->is_master_port_ = false;
 }
@@ -109,6 +122,10 @@ int PHXSqlProxyConfig::GetOnlyProxy() {
 
 int PHXSqlProxyConfig::MasterEnableReadPort() {
     return is_master_enable_read_port_;
+}
+
+int PHXSqlProxyConfig::TryBestIfBinlogsvrDead() {
+    return is_enable_try_best_;
 }
 
 const char * PHXSqlProxyConfig::GetFreqCtrlConfigPath() {
@@ -131,5 +148,20 @@ int PHXSqlProxyConfig::Sleep() {
     return sleep_;
 }
 
+uint32_t PHXSqlProxyConfig::ConnectTimeoutMs() {
+    return connect_timeout_ms_;
 }
 
+uint32_t PHXSqlProxyConfig::WriteTimeoutMs() {
+    return write_timeout_ms_;
+}
+
+int PHXSqlProxyConfig::ProxyProtocol() {
+    return proxy_protocol_;
+}
+
+uint32_t PHXSqlProxyConfig::ProxyProtocolTimeoutMs() {
+    return proxy_protocol_timeout_ms_;
+}
+
+}

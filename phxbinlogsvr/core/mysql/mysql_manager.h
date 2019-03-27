@@ -51,6 +51,7 @@ class MySqlManager {
     int AddMemberAdminPermission(const std::string &member_ip);
     int RemoveMemberAdminPermission(const std::string &member_ip);
     int CheckAdminPermission(const std::vector<std::string> &member_list);
+    static std::string ReduceGtidByOne(const std::string &gtid);
  protected:
     bool CheckAdminAccount(const std::string &admin_username, const std::string &admin_pwd);
 
@@ -66,7 +67,8 @@ class MySqlManager {
     int CheckAdminUser(const std::string &username, const std::string &pwd);
     int CheckReplicaUser(const std::string &username, const std::string &pwd);
 
-    int CreateUser(const std::string &username);
+    int CreateUser(const std::string &username, const std::string &pwd);
+    int ChangePwd(const std::string &usename, const std::string &pwd);
     int CreateAdmin(const std::string &admin_username, const std::string &admin_pwd,
                     const std::vector<std::string> &ip_list);
     int CreateReplica(const std::string &admin_username, const std::string &replica_username,

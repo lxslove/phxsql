@@ -1,14 +1,16 @@
 <img align="right" src="http://mmbiz.qpic.cn/mmbiz/UqFrHRLeCAkOcYOjaX3oxIxWicXVJY0ODsbAyPybxk4DkPAaibgdm7trm1MNiatqJYRpF034J7PlfwCz33mbNUkew/640?wx_fmt=jpeg&wxfrom=5&wx_lazy=1" hspace="15" width="200px" style="float: right">
 
-**PhxSQL是由微信后台团队自主研发的一款服务高可用、数据强一致的分布式数据库服务。该服务基于Percona5.6搭建，目标在于解决[MySQL在容灾和数据一致性方面的不足](http://mp.weixin.qq.com/s?__biz=MzI4NDMyNTU2Mw==&mid=2247483726&idx=1&sn=a295d87b4f6d1394a17b33d7c71989e5&scene=0)，并大幅简化了MySQL容灾切换的运维操作。**
+**PhxSQL是由微信后台团队自主研发的一款数据强一致、服务高可用的分布式数据库服务。PhxSQL提供Zookeeper级别的强一致和高可用，完全兼容MySQL。**
 
 作者：Junchao Chen, Haochuan Cui, Duokai Huang, Ming Chen 和 Sifan Liu 
 
 联系我们：phxteam@tencent.com
 
-想了解更多，请扫描右侧二维码关注我们的公众号
+想了解更多, 以及更详细的编译手册，请进入[中文WIKI](https://github.com/Tencent/phxsql/wiki)，和扫描右侧二维码关注我们的公众号
 
 方案说明：[微信开源PhxSQL：高可用、强一致的MySQL集群](http://mp.weixin.qq.com/s?__biz=MzI4NDMyNTU2Mw==&mid=2247483783&idx=1&sn=a2d6e589f1f591ded7703eb74aefccbe&scene=0#wechat_redirect)
+
+PhxSQL设计和实现哲学：[上篇](https://zhuanlan.zhihu.com/p/22345242)，[下篇](https://zhuanlan.zhihu.com/p/22361242)
 
 # 总览
   - PhxSQL具有服务高可用、数据强一致、高性能、运维简单、和MySQL完全兼容的特点。
@@ -20,11 +22,11 @@
 
 项目中包含PhxSQL源代码，源代码编译时所需要的一些第三方库，及可直接在Linux环境下运行的二进制包。其中代码使用到了微信团队自研的另外三个开源项目（phxpaxos,phxrpc,colib)。若需编译源代码，需额外下载，也可以在clone时通过--recurse-submodule获得代码。
 
-**phxpaxos项目地址：** [http://github.com/tencent-wechat/phxpaxos](http://github.com/tencent-wechat/phxpaxos "http://github.com/tencent-wechat/phxpaxos")
+**phxpaxos项目地址：** [http://github.com/Tencent/phxpaxos](http://github.com/Tencent/phxpaxos "http://github.com/Tencent/phxpaxos")
 
-**phxrpc项目地址：** [http://github.com/tencent-wechat/phxrpc](http://github.com/tencent-wechat/phxrpc "http://github.com/tencent-wechat/phxrpc")
+**phxrpc项目地址：** [http://github.com/Tencent/phxrpc](http://github.com/Tencent/phxrpc "http://github.com/Tencent/phxrpc")
 
-**colib项目地址：** [http://github.com/tencent-wechat/libco](http://github.com/tencent-wechat/libco "http://github.com/tencent-wechat/libco")
+**colib项目地址：** [http://github.com/Tencent/libco](http://github.com/Tencent/libco "http://github.com/Tencent/libco")
 
 
 # PhxSQL编译
@@ -86,6 +88,8 @@ PhxSQL需要用到一些第三方库（glog, leveldb, protobuf, phxpaxos, colib,
 2. 若想打包二进制运行包（集群运行时所需要的所有文件和配置）`make package`
 3. `install`完成后，二进制会生成到`PhxSQL`目录下的`sbin`目录，运行所需要的相关文件和配置会安装到PhxSQL目录下的`install_package`目录。打包二进制运行包会把`install_package`进行tar格式的打包，并生成`phxsql.tar.gz`。若想更改`install`的安装目录，可在`sh autoinstall.sh` 后加入`-prefix=`路径
 
+> 详细的编译步骤请参阅WIKI [中文编译手册](https://github.com/Tencent/phxsql/wiki/%E4%B8%AD%E6%96%87%E8%AF%A6%E7%BB%86%E7%BC%96%E8%AF%91%E6%89%8B%E5%86%8C)
+
 # PhxSQL部署和运行
 
 ### 准备机器
@@ -127,6 +131,7 @@ PhxSQL需要用到一些第三方库（glog, leveldb, protobuf, phxpaxos, colib,
 | PaxosOption| PaxosLogPath| Phxbinlogsvr中paxos库的数据目录|
 | | PaxosPort|Phxbinlogsvr中paxos库的通信端口|
 | | PacketMode | Phxbinlogsvr在paxos协议中是否增大包的大小限制， 1为每个包的大小为100m，但超时限制变为1分钟，0 为每个包的大小为50m，超时限制2s起（动态变化）|
+| | UDPMaxSize | Phxpaxos默认使用udp和tcp混合的通讯方式，根据这个阈值觉得使用udp还是tcp。大小小于UDPMaxSize的消息会使用udp发送。 |
 | Server | IP | Phxbinlogsvr的监听ip |
 | | Port | Phxbinlogsvr的监听端口 |
 | |  LogFilePath | Phxbinlogsvr的日志目录 |
@@ -140,6 +145,8 @@ PhxSQL需要用到一些第三方库（glog, leveldb, protobuf, phxpaxos, colib,
 | | Port | phxsqlproxy的监听端口 |
 | | QSLogFilePath  | phxsqlproxy的日志目录 |
 | | QSLogLevel | phxsqlproxy的日志级别 |
+| | MasterEnableReadPort | 是否打开master的只读端口。如果设为0，master会将只读端口的请求转发到一台slave上。 |
+| | TryBestIfBinlogsvrDead | 如果这个选项设为1，在本地phxbinlogsvr挂掉后，phxsqlproxy会重试从别的机器上的phxbinlogsvr获取master信息。 |
 
 # PhxSQL使用
 
@@ -153,11 +160,11 @@ PhxSQL需要用到一些第三方库（glog, leveldb, protobuf, phxpaxos, colib,
 
 ##### 只读端口
 
-该端口号为读写端口号+1, 用户连接上此端口时，会对本机的MySQL进行操作(但若本机为master，则phxsqlproxy会把请求转发到其他phxsqlproxy的只读端口）。
+该端口号为读写端口号+1, 用户连接上此端口时，会对本机的MySQL进行操作(但若本机为master且phxsqlproxy.conf中设置了MasterEnableReadPort=0，则phxsqlproxy会把请求转发到其他phxsqlproxy的只读端口）。
 
 ### PhxSQL的使用
 
-1. 通过mysql命令连接上`phxsqlproxy`，然后执行命令`mysql -uroot -h$phxsqlproxyip -P$phxsqlproxyport -ppwd`
+1. 通过执行命令`mysql -uroot -h$phxsqlproxyip -P$phxsqlproxyport -ppwd` 连接`phxsqlproxy`，
 2. 进行sql命令操作
 
 >phxsqlproxyip为集群内的任意一台phxsqlproxy的ip
@@ -228,7 +235,7 @@ PhxSQL集群中对MySQL的管理使用两个账号管理员帐号和数据同步
    >根据 "`初始化PhxSQL`" 步骤安装PhxSQL
 3. 执行成功后，机器A的phxbinlogsvr将会在一段时间后开始接收数据
 4. 从集群内任意一台机器的percona导出一份镜像数据
-5. kill掉机器A上的phxbinlogsvr, 并通过本地的MySQL端口进入MySQL，执行`set super_read_only = 0; set read_only = 0`;
+5. kill掉机器A上的phxbinlogsvr, 并通过本地的MySQL端口进入MySQL，执行`set global super_read_only = 0; set global read_only = 0`;
 5. 将镜像数据导入到机器A上的percona，并kill掉机器A上的phxbinlogsvr
 6. 一段时间（~1分钟）后，机器A开始正常工作
 

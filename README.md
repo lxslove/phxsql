@@ -1,4 +1,4 @@
-[简体中文README](https://github.com/tencent-wechat/phxsql/blob/master/README.zh_cn.md)
+[简体中文README](https://github.com/Tencent/phxsql/blob/master/README.zh_cn.md)
 
 **PhxSQL is a high-availability and strong-consistency MySQL cluster built on Paxos and Percona.**
 
@@ -6,12 +6,14 @@ Authors: Junchao Chen, Haochuan Cui, Duokai Huang, Ming Chen and Sifan Liu
 
 Contact us: phxteam@tencent.com
 
+[![Build Status](https://travis-ci.org/Tencent/phxsql.svg?branch=master)](https://travis-ci.org/Tencent/phxsql)
+
 #PhxSQL features:
-  - high resilience to nodes failure and network partition: the cluster works well when more than half of cluster nodes work and are interconnected.
-  - high availability by automatic failovers.
-  - guarantee of data consistency among cluster nodes: replacing loss-less semi-sync between MySQL master and MySQL slaves with Paxos, PhxSQL ensures zero-loss binlogs between master and slaves.
+  - high availability by automatic failovers: the cluster works well when more than half of cluster nodes work and are interconnected.
+  - guarantee of data consistency among cluster nodes: replacing loss-less semi-sync between MySQL master and MySQL slaves with Paxos, PhxSQL ensures zero-loss binlogs between master and slaves and supports linearizable consistency, which is as strong as that of Zookeeper.
+  - complete compliance with MySQL and MySQL client: PhxSQL supports up to serializable isolation level of transaction.
   - easy deployment and easy maintenance: PhxSQL, powered by in-house implementation of Paxos, has only 4 components including MySQL and doesn't depend on zookeeper or etcd for anything. PhxSql supports automated cluster membership hot reconfiguration.
-  - complete compliance with MySQL and MySQL client.
+  
 
 
 This project includes 
@@ -19,14 +21,14 @@ This project includes
 * Third party submodules
 * Pre-compiled binaries for Ubuntu 64bit system.
     
-Projects on which this project depends are also published by tencent-wechat( phxpaxos, phxrpc, libco ).
+Projects on which this project depends are also published by Tencent( phxpaxos, phxrpc, libco ).
 You can download or clone them with --recurse-submodule.
 
-**phxpaxos：** [http://github.com/tencent-wechat/phxpaxos](http://github.com/tencent-wechat/phxpaxos "http://github.com/tencent-wechat/phxpaxos")
+**phxpaxos：** [http://github.com/Tencent/phxpaxos](http://github.com/Tencent/phxpaxos "http://github.com/Tencent/phxpaxos")
 
-**phxrpc：** [http://github.com/tencent-wechat/phxrpc](http://github.com/tencent-wechat/phxrpc "http://github.com/tencent-wechat/phxrpc")
+**phxrpc：** [http://github.com/Tencent/phxrpc](http://github.com/Tencent/phxrpc "http://github.com/Tencent/phxrpc")
 
-**libco：** [http://github.com/tencent-wechat/libco](http://github.com/tencent-wechat/libco "http://github.com/tencent-wechat/libco")
+**libco：** [http://github.com/Tencent/libco](http://github.com/Tencent/libco "http://github.com/Tencent/libco")
 
 # Compilation of PhxSQL
 
@@ -135,6 +137,7 @@ Move `percona-server-5.6\_5.6.31-77.0` to PhxSQL directory, rename or link as 'p
 | PaxosOption| PaxosLogPath| Directory where to store paxos data |
 | | PaxosPort| Port for paxos to connect each other |
 | | PacketMode | The maximum size of paxos log for PhxPaxos,1 means 100M, but the network timeout will be 1 minute, 0 means 50M and network timeout is 2s(changed in dynamic).| 
+| | UDPMaxSize | Our default network use udp and tcp combination, a message we use udp or tcp to send decide by a threshold. Message size under UDPMaxSize we use udp to send. |
 | Server | IP | IP for phxbinlogsvr to listen |
 | | Port | Port for phxbinlogsvr to listen |
 | |  LogFilePath | Directory to store log |
@@ -148,7 +151,8 @@ Move `percona-server-5.6\_5.6.31-77.0` to PhxSQL directory, rename or link as 'p
 | | Port | Port for phxsqlproxy to listen |
 | | LogFilePath  | Directory to store log |
 | | LogLevel | Log level of phxbinlogsvr |
-| | MasterEnableReadPort | Enable readonly-port in master node  |
+| | MasterEnableReadPort | Enable readonly-port in master node. If set to 0, master will forwarding readonly-port requests to one of slaves. |
+| | TryBestIfBinlogsvrDead | After the local phxbinlogsvr is dead, phxsqlproxy will try to get master information from phxbinlogsvr on other machine, if this option set to 1. |
 
 # PhxSQL Usasge
 
@@ -237,7 +241,7 @@ Once it is succesfully executed, A will not learn binlog after a small period.
 2. Install PhxSQL on A.
 3. A will begin to learn data after installation is finished.
 4. Copy a snapshot of MySQL from any other nodes to A.
-5. Kill phxbinlogsvr and access MySQL through the local port( or socket ). then execute `set super_read_only = 0; set read_only = 0`;
+5. Kill phxbinlogsvr and access MySQL through the local port( or socket ). then execute `set global super_read_only = 0; set global read_only = 0`;
 6. Dump the snapshot into MySQL.
 7. A will begin to work after a while.
 
@@ -275,10 +279,10 @@ sysbench  --oltp-tables-count=10 --oltp-table-size=1000000 --num-threads=500 --m
 | Client Threads                                         | Clusters    |                    |             |     Test sets   |           |                 |               |
 |------------------------------------------------------|-------------|------------------------|-------------|----------------------|-----------|---------------------|---------------|
 |                                                      |             | insert.lua (100% write)     |             | select.lua (0% write)     |           | OLTP.lua (20% write)     |               |
-|                                                      |             | QPS                | Costs        | QPS              | Costs      | QPS             | Costs          |
+|                                                      |             | QPS                | Response time(MS)        | QPS              | Response time(MS)      | QPS             | Response time(MS)          |
 | 200                                                  | PhxSQL      | 5076               | 39.34/56.93 | 46334            | 4.21/5.12 | 25657           | 140.16/186.39 |
 | 200                                                  | MySQL semi-sync | 4055               | 49.27/66.64 | 47528            | 4.10/5.00 | 20391           | 176.39/226.76 |
 | 500                                                  | PhxSQL      | 8260               | 60.41/83.14 | 105928           | 4.58/5.81 | 46543           | 192.93/242.85 |
 | 500                                                  | MySQL semi-sync | 7072               | 70.60/91.72 | 121535           | 4.17/5.08 | 33229           | 270.38/345.84 |
 
-**NOTE:The 2 costs numbers means average and 95% percentile**
+**NOTE:The 2 Response times means average and 95% percentile**

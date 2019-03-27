@@ -19,12 +19,14 @@
 #include "phxcomm/phx_log.h"
 #include "phxbinlogsvr/config/phxbinlog_config.h"
 #include "phxbinlogsvr/define/errordef.h"
+#include "phxbinlogsvr/core/gtid_handler.h"
 
 #include <string.h>
 #include <assert.h>
 
 using std::string;
 using std::vector;
+using std::pair;
 using phxsql::ColorLogWarning;
 using phxsql::ColorLogError;
 using phxsql::LogVerbose;
@@ -94,10 +96,11 @@ int MySqlManager::Query(const string& query_string, const string &ip) {
     mysql_option.ip = ip;
     mysql_option.port = option_->GetMySqlConfig()->GetMySQLPort();
     mysql_option.username = GetAdminUserName();
+    mysql_option.pwd = GetAdminPwd();
     if (mysql_option.username == "") {
         mysql_option.username = "root";
+        mysql_option.pwd = "";
     }
-    mysql_option.pwd = GetAdminPwd();
     LogVerbose("%s username %s pwd %s query %s", __func__, mysql_option.username.c_str(), mysql_option.pwd.c_str(),
                query_string.c_str());
 
@@ -110,10 +113,11 @@ int MySqlManager::Query(const string &query_string, vector<vector<string> > *res
     mysql_option.ip = ip;
     mysql_option.port = option_->GetMySqlConfig()->GetMySQLPort();
     mysql_option.username = GetAdminUserName();
+    mysql_option.pwd = GetAdminPwd();
     if (mysql_option.username == "") {
         mysql_option.username = "root";
+        mysql_option.pwd = "";
     }
-    mysql_option.pwd = GetAdminPwd();
     LogVerbose("%s username %s pwd %s query %s", __func__, mysql_option.username.c_str(), mysql_option.pwd.c_str(),
                query_string.c_str());
 
@@ -129,6 +133,7 @@ int MySqlManager::GetValue(const std::string &value_type, const std::string &val
     mysql_option.pwd = GetAdminPwd();
     if (mysql_option.username == "") {
         mysql_option.username = "root";
+        mysql_option.pwd = "";
     }
     LogVerbose("%s username %s pwd %s", __func__, mysql_option.username.c_str(), mysql_option.pwd.c_str());
 
@@ -166,11 +171,11 @@ int MySqlManager::CheckUserGrantExist(const string &username, const string &pwd,
                                       const string &grant_flag_string) {
 
     MySqlOption mysql_option;
-    mysql_option.ip = "127.0.0.1";
+    mysql_option.ip = option_->GetBinLogSvrConfig()->GetEngineIP();
     mysql_option.port = option_->GetMySqlConfig()->GetMySQLPort();
     mysql_option.username = username;
     mysql_option.pwd = pwd;
-    LogVerbose("%s username %s pwd %s", __func__, mysql_option.username.c_str(), mysql_option.pwd.c_str());
+    //LogVerbose("%s username %s pwd %s", __func__, mysql_option.username.c_str(), mysql_option.pwd.c_str());
 
     vector < vector < string >> results;
     int ret = MySQLCommand(&mysql_option).GetQueryResults(grant_string, &results);
@@ -196,13 +201,14 @@ bool MySqlManager::CheckAdminAccount(const string &admin_username, const string 
     return admin_username == GetAdminUserName() && admin_pwd == GetAdminPwd();
 }
 
-int MySqlManager::CreateUser(const string &username) {
+int MySqlManager::ChangePwd(const string &username, const string &pwd) {
+    return Query(MySqlStringHelper::GetChangePwdStr(username,pwd));
+}
+
+int MySqlManager::CreateUser(const string &username,const string &pwd) {
     int ret = CheckUserExist(username);
-    if (ret == OK) {
-        return OK;
-    }
     if (ret == MYSQL_USER_NOT_EXIST) {
-        return Query(MySqlStringHelper::GetCreateUserStr(username));
+        ret = Query(MySqlStringHelper::GetCreateUserStr(username, pwd));
     }
     return ret;
 }
@@ -286,7 +292,7 @@ int MySqlManager::CreateAdmin(const string &admin_username, const string &admin_
                               const std::vector<std::string> &iplist) {
     LogVerbose("%s create user %s", __func__, admin_username.c_str());
     if (admin_username != "root" && admin_username != GetAdminUserName()) {
-        int ret = CreateUser(admin_username);
+        int ret = CreateUser(admin_username, admin_pwd);
         if (ret) {
             return ret;
         }
@@ -294,29 +300,26 @@ int MySqlManager::CreateAdmin(const string &admin_username, const string &admin_
     LogVerbose("%s create user %s done", __func__, admin_username.c_str());
 
     if (admin_username != GetAdminUserName() || admin_pwd != GetAdminPwd()) {
-        for (auto ip : iplist) {
-            string grant_string = MySqlStringHelper::GetGrantAdminUserStr(admin_username, admin_pwd, ip);
+        auto host_list = iplist;
+        host_list.push_back("127.0.0.1");
+        host_list.push_back("localhost");
+        for (auto host : host_list) {
+            string grant_string = MySqlStringHelper::GetGrantAdminUserStr(admin_username, admin_pwd, host);
             int ret = Query(grant_string);
             if (ret) {
                 return ret;
             }
             LogVerbose("%s grant %s user %s done", __func__, grant_string.c_str(), admin_username.c_str());
         }
-        string grant_string = MySqlStringHelper::GetGrantAdminUserStr(admin_username, admin_pwd, "127.0.0.1");
-        int ret = Query(grant_string);
-        if (ret) {
-            return ret;
-        }
-        LogVerbose("%s grant %s user %s done", __func__, grant_string.c_str(), admin_username.c_str());
-
     }
+    //not real change pwd. if change, the connection for other operation will be fail.
     return OK;
 }
 
 int MySqlManager::CreateReplica(const string &admin_username, const string &replica_username,
                                 const string &replica_pwd) {
     if (replica_username != GetReplicaUserName()) {
-        int ret = CreateUser(replica_username);
+        int ret = CreateUser(replica_username,"");
         if (ret) {
             return ret;
         }
@@ -370,7 +373,7 @@ int MySqlManager::CheckAdminPermission(const std::vector<std::string> &member_li
         int ret = CheckUserGrantExist(username, pwd, MySqlStringHelper::GetShowGrantString(username, member),
                                       " WITH GRANT OPTION");
         if (ret == MYSQL_USER_NOT_EXIST) {
-            ColorLogWarning("%s new user %s do not have grant add one", __func__, username.c_str());
+            ColorLogWarning("%s new user %s, member %s do not have grant add one", __func__, username.c_str(), member.c_str());
 
             string grant_string = MySqlStringHelper::GetGrantAdminUserStr(username, pwd, member);
             ret = Query(grant_string);
@@ -410,5 +413,10 @@ int MySqlManager::RemoveMemberAdminPermission(const std::string &member_ip) {
     return RemoveMemberAdminPermission(GetAdminUserName(), GetAdminPwd(), member_ip);
 }
 
+string MySqlManager::ReduceGtidByOne(const string &gtid) {
+    pair<string, size_t> gtid_item = GtidHandler::ParseGTID(gtid);
+    gtid_item.second--;
+    return GtidHandler::GenGTID(gtid_item.first, gtid_item.second);
 }
 
+}

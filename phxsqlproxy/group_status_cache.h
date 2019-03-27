@@ -8,51 +8,60 @@
 	Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 */
 
-#pragma once 
+#pragma once
 
-#include "co_routine.h"
-#include "phxcoroutine.h"
+#include "phxthread.h"
 
-#include "phxcomm/phx_log.h"
-
-#include <atomic> 
+#include <vector>
+#include <string>
+#include <unordered_map>
 
 namespace phxsqlproxy {
 
-template<class T>
-class GroupStatusCache : public Coroutine {
+class PHXSqlProxyConfig;
+typedef struct tagWorkerConfig WorkerConfig_t;
+
+typedef struct tagMasterStatus {
+    std::string master_ip_ = "";
+    uint32_t expired_time_ = 0;
+    uint32_t version_ = 0;
+} MasterStatus_t;
+
+class GroupStatusCache : public PhxThread {
  public:
-    GroupStatusCache() {
-    }
+    GroupStatusCache(PHXSqlProxyConfig * config, WorkerConfig_t * worker_config);
 
-    virtual ~GroupStatusCache() {
-    }
+    virtual ~GroupStatusCache();
 
-    virtual const T & GetGroupStatus() {
-        return group_status_;
-    }
+    void run();
+
+    int GetMaster(std::string & master_ip);
+
+    bool IsMember(const std::string & ip);
+
+    // use by MasterEnableReadPort=0
+
+    int GetSlave(const std::string & master_ip, std::string & slave_ip);
+
+    void MarkFailure(const std::string & ip);
 
  private:
-    int run() {
-        co_enable_hook_sys();
-        while (true) {
-            int ret = UpdateGroupStatus(group_status_);
+    int UpdateMasterStatus();
 
-            if (ret != 0) {
-                phxsql::LogError("UpdateGroupStatus ret %d", ret);
-            }
-            phxsql::LogVerbose("UpdateGroupStatus ret %d", ret);
+    int UpdateMembership();
 
-            int sleep_ms = (ret == 0 ? 10000 : 100);
-            poll(0, 0, sleep_ms);
-        }
-        return 0;
-    }
+    bool IsMasterValid(const std::string & master_ip, uint32_t expired_time);
 
-    virtual int UpdateGroupStatus(T & group_status) = 0;
+ private:
+    PHXSqlProxyConfig * config_;
+    WorkerConfig_t * worker_config_;
 
- protected:
-    T group_status_;
+    MasterStatus_t master_status_;
+    pthread_rwlock_t master_mutex_;
+
+    std::vector<std::string> membership_;
+    std::unordered_map<std::string, uint64_t> last_failure_; // use by MasterEnableReadPort=0
+    pthread_rwlock_t membership_mutex_;
 };
 
 }

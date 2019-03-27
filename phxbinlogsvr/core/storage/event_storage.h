@@ -54,6 +54,7 @@ class EventStorage {
     const std::string &GetDataDir() const;
     int Restart();
 
+    void Notify();
  protected:
     //for checkpoint
     void RemoveFile(const std::string &file_name);
@@ -72,14 +73,13 @@ class EventStorage {
     int Start();
     int Close();
 
-    void Notify();
     void Wait();
 
     int RealGetGTIDInfo(const std::string &gtid, EventDataInfo *data_info);
     int RealGetLowerBoundGTIDInfo(const std::string &gtid, EventDataInfo *data_info);
     int RealCheckGTID(const std::string &gtid, EventDataInfo *info);
     void CheckPointDone();
-    int CheckGtidInData(const std::string &gtid, const EventDataInfo &datainfo);
+    static int CheckGtidInData(const std::string &gtid, const EventDataInfo &datainfo, const Option *option);
 
  private:
     EventFileManager *event_file_manager_;

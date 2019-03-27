@@ -1,5 +1,5 @@
 
-version = 0.8.0
+version = 0.8.5
 
 SRC_BASE_PATH ?= .
 PREFIX?=$(SRC_BASE_PATH)
@@ -11,6 +11,7 @@ NANOPBPATH=$(SRC_BASE_PATH)/third_party/nanopb/
 
 PROTOBUF_INCLUDE_PATH=$(SRC_BASE_PATH)/third_party/protobuf/include
 LEVELDB_INCLUDE_PATH=$(SRC_BASE_PATH)/third_party/leveldb/include
+GFLAGS_INCLUDE_PATH=$(SRC_BASE_PATH)/third_party/gflags/include
 GLOG_INCLUDE_PATH=$(SRC_BASE_PATH)/third_party/glog/include
 PHXPAXOS_INCLUDE_PATH=$(SRC_BASE_PATH)/third_party/phxpaxos/include
 PHXPAXOS_PLUGIN_PATH=$(SRC_BASE_PATH)/third_party/phxpaxos/plugin/include
@@ -20,6 +21,7 @@ PHXRPC_INCLUDE_PATH=$(SRC_BASE_PATH)/third_party/phxrpc
 
 PROTOBUF_LIB_PATH=$(SRC_BASE_PATH)/third_party/protobuf/lib
 LEVELDB_LIB_PATH=$(SRC_BASE_PATH)/third_party/leveldb/lib/
+GFLAGS_LIB_PATH=$(SRC_BASE_PATH)/third_party/gflags/lib
 GLOG_LIB_PATH=$(SRC_BASE_PATH)/third_party/glog/lib
 MYSQL_LIB_PATH=$(SRC_BASE_PATH)/percona/libmysql
 PHXPAXOS_LIB_PATH=$(SRC_BASE_PATH)/third_party/phxpaxos/lib
@@ -30,13 +32,14 @@ PHXRPC_LIB_PATH=$(SRC_BASE_PATH)/third_party/phxrpc/lib
 CXX=g++
 CXXFLAGS+=-std=c++11
 CPPFLAGS+=-I$(SRC_BASE_PATH) -I$(PROTOBUF_INCLUDE_PATH)  -I$(LEVELDB_INCLUDE_PATH)
-CPPFLAGS+=-I$(GLOG_INCLUDE_PATH) 
-CPPFLAGS+=-Wall -g -fPIC -m64 
+CPPFLAGS+=-I$(GFLAGS_INCLUDE_PATH) -I$(GLOG_INCLUDE_PATH)
+CPPFLAGS+=-Wall -g -fPIC -m64
 
-LDFLAGS+=-L$(PHXPAXOS_LIB_PATH) -L$(PHXSQL_LIB_PATH) -L$(PROTOBUF_LIB_PATH) -L$(LEVELDB_LIB_PATH) 
-LDFLAGS+=-L$(GLOG_LIB_PATH) -L$(GRPC_LIBE_PATH) -L$(OPEN_SSL_LIB_PATH) -L$(MYSQL_LIB_PATH)
-LDFLAGS+=-L$(COLIB_LIB_PATH) 
-LDFLAGS+=-static-libgcc -static-libstdc++
+LDFLAGS += -L$(PHXPAXOS_LIB_PATH) -L$(PHXSQL_LIB_PATH) -L$(PROTOBUF_LIB_PATH) -L$(LEVELDB_LIB_PATH)
+LDFLAGS += -L$(GFLAGS_LIB_PATH) -L$(GLOG_LIB_PATH) -L$(GRPC_LIBE_PATH) -L$(OPEN_SSL_LIB_PATH) -L$(MYSQL_LIB_PATH)
+LDFLAGS += -L$(COLIB_LIB_PATH)
+LDFLAGS += -static-libgcc -static-libstdc++
+LDFLAGS += -Wl,--no-as-needed
 
 
 #=====================================================================================================
@@ -57,6 +60,7 @@ vpath %.proto $(PROTOS_PATH)
 %.pb.cc: %.proto
 	$(PROTOC) -I$(PROTOBUF_INCLUDE_PATH) -I $(PROTOS_PATH) --cpp_out=. $<
 
+.PHONY: install
 install:
 	make install -C percona
 	@mkdir $(PREFIX)/lib -p;\
@@ -73,7 +77,6 @@ install:
 	@cp $(SRC_BASE_PATH)/README.md $(PREFIX)/install_package/;
 	@cp $(SRC_BASE_PATH)/phxrpc_package_config/* $(PREFIX)/install_package/ -rf;
 	@cp $(SRC_BASE_PATH)/.sbin/* $(PREFIX)/install_package/sbin/ -rf;
-	@cp $(SRC_BASE_PATH)/percona/lib/mysql/plugin/*phxsync* $(PREFIX)/install_package/lib/ -rf;
 	@cp $(SRC_BASE_PATH)/percona/bin/mysqld $(PREFIX)/install_package/sbin/ -rf;
 	@cp $(SRC_BASE_PATH)/percona/bin $(PREFIX)/install_package/percona.src/ -r;
 	@cp $(SRC_BASE_PATH)/percona/lib $(PREFIX)/install_package/percona.src/ -r;

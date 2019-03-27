@@ -32,7 +32,7 @@
 #include "accept_thread.h"
 #include "worker_thread.h"
 #include "monitor_routine.h"
-#include "master_cache.h"
+#include "group_status_cache.h"
 #include "io_routine.h"
 #include "phxcoroutine.h"
 #include "phxsqlproxyconfig.h"
@@ -50,7 +50,7 @@ using namespace phxsql;
 void co_init_curr_thread_env();
 
 void SignalStop(int signal_value) {
-    LogError("receive signal %d", signal_value);
+    // LogError("receive signal %d", signal_value);
 }
 
 void SignalHandler(void) {
@@ -72,22 +72,26 @@ int TickFunc(void* args) {
 template<class T>
 int StartWorker(PHXSqlProxyConfig * config, WorkerConfig_t * worker_config) {
     const char * listen_ip = worker_config->listen_ip_;
-    int port = worker_config->port_;
     int fork_proc_count = worker_config->fork_proc_count_;
     int worker_thread_count = worker_config->worker_thread_count_;
-    int listen_fd = CreateTcpSocket(port, listen_ip, true);
-    if (listen_fd <= 0) {
-        LogError("creat tcp socket failed ret %d, errno (%d:%s)", listen_fd, errno, strerror(errno));
-        printf("creat tcp socket failed ret %d, errno (%d:%s)", listen_fd, errno, strerror(errno));
-        return -__LINE__;
-    }
 
-    int ret = listen(listen_fd, 1024);
-    if (ret < 0) {
-        LogError("listen in [%s:%d] fd %d ret %d errno (%d:%s)", listen_ip, port, listen_fd, ret, errno,
-                 strerror(errno));
-        printf("creat tcp socket failed ret %d, errno (%d:%s)", listen_fd, errno, strerror(errno));
-        return -__LINE__;
+    int listen_fd[2];
+    int port[2] = {worker_config->port_, worker_config->proxy_port_};
+    for (int i = 0; i < 2; ++i) {
+        listen_fd[i] = CreateTcpSocket(port[i], listen_ip, true);
+        if (listen_fd[i] <= 0) {
+            LogError("creat tcp socket failed ret %d, errno (%d:%s)", listen_fd[i], errno, strerror(errno));
+            printf("creat tcp socket failed ret %d, errno (%d:%s)", listen_fd[i], errno, strerror(errno));
+            return -__LINE__;
+        }
+
+        int ret = listen(listen_fd[i], 1024);
+        if (ret < 0) {
+            LogError("listen in [%s:%d] fd %d ret %d errno (%d:%s)", listen_ip, port[i], listen_fd[i], ret,
+                     errno, strerror(errno));
+            printf("creat tcp socket failed ret %d, errno (%d:%s)", listen_fd[i], errno, strerror(errno));
+            return -__LINE__;
+        }
     }
 
     //SetNonBlock( listen_fd );
@@ -117,16 +121,21 @@ int StartWorker(PHXSqlProxyConfig * config, WorkerConfig_t * worker_config) {
             heartbeat_thread->start();
         }
 
+        GroupStatusCache * group_status_cache = new GroupStatusCache(config, worker_config);
+        group_status_cache->start();
+
         vector<WorkerThread *> worker_threads;
         for (int j = 0; j < worker_thread_count; ++j) {
             WorkerThread * worker_thread = new WorkerThread(config, worker_config);
-            worker_thread->InitRoutines<T>();
+            worker_thread->InitRoutines<T>(group_status_cache);
             worker_threads.push_back(worker_thread);
             worker_thread->start();
         }
 
-        AcceptThread * accept_thread = new AcceptThread(config, worker_threads, listen_fd);
-        accept_thread->start();
+        for (int i = 0; i < 2; ++i) {
+            AcceptThread * accept_thread = new AcceptThread(config, worker_threads, listen_fd[i]);
+            accept_thread->start();
+        }
 
         co_eventloop(co_get_epoll_ct(), TickFunc, 0);
         exit(0);
@@ -168,4 +177,3 @@ int phxsqlproxymain(int argc, char *argv[], PHXSqlProxyConfig * config) {
     printf("start slave worker finished ...\n");
     return 0;
 }
-

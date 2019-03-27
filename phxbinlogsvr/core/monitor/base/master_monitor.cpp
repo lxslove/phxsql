@@ -175,4 +175,3 @@ int MasterMonitor::CheckMasterPermisstion(const Option *option, const std::vecto
 }
 
 }
-

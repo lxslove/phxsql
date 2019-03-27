@@ -20,6 +20,7 @@ namespace phxsqlproxy {
 typedef struct tagWorkerConfig {
     const char * listen_ip_;
     int port_;
+    int proxy_port_;
     int fork_proc_count_;
     int worker_thread_count_;
     int io_routine_count_;
@@ -47,6 +48,8 @@ class PHXSqlProxyConfig : public phxsql::PhxBaseConfig {
 
     int MasterEnableReadPort();
 
+    int TryBestIfBinlogsvrDead();
+
     const char * GetFreqCtrlConfigPath();
 
     int GetSvrLogLevel();
@@ -54,6 +57,12 @@ class PHXSqlProxyConfig : public phxsql::PhxBaseConfig {
     int GetSvrLogFileMaxSize();
 
     int Sleep();
+
+    uint32_t ConnectTimeoutMs();
+    uint32_t WriteTimeoutMs();
+
+    int ProxyProtocol();
+    uint32_t ProxyProtocolTimeoutMs();
 
  public:
     WorkerConfig_t * GetMasterWorkerConfig();
@@ -86,6 +95,8 @@ class PHXSqlProxyConfig : public phxsql::PhxBaseConfig {
 
     int is_master_enable_read_port_;
 
+    int is_enable_try_best_;
+
     std::string freqctrl_config_;
 
     int log_level_;
@@ -96,6 +107,12 @@ class PHXSqlProxyConfig : public phxsql::PhxBaseConfig {
     std::string svr_ip_;
 
     int sleep_;
+
+    uint32_t connect_timeout_ms_;
+    uint32_t write_timeout_ms_;
+
+    int proxy_protocol_;
+    uint32_t proxy_protocol_timeout_ms_;
 };
 
 }

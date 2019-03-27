@@ -8,6 +8,7 @@
 	Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" basis, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 */
 
+
 #include "event_executer.h"
 
 #include "storage_manager.h"
@@ -90,7 +91,7 @@ int EventExecuter::SMExecute(const uint64_t &instance_id, const string &paxos_va
             return GTID_CONFLICT;
         }
     }
-
+    
     uint64_t old_checksum = 0;
     int ret = event_manager_->GetNowCheckSum(&old_checksum);
     if (ret) {
@@ -158,4 +159,3 @@ int EventExecuter::LoadCheckpointState(const int group_idx, const string &checkp
 }
 
 }
-

@@ -42,9 +42,14 @@ string MySqlStringHelper::GetSvrIDString(const uint32_t &svr_id) {
     return cmd;
 }
 
-string MySqlStringHelper::GetCreateUserStr(const string &username) {
+string MySqlStringHelper::GetCreateUserStr(const string &username, const string &pwd) {
     char cmd[1024];
-    sprintf(cmd, "create user %s;", username.c_str());
+	if(pwd.empty()) {
+		sprintf(cmd, "create user %s;", username.c_str());
+	}
+	else {
+		sprintf(cmd, "create user %s@'127.0.0.1' identified by '%s';", username.c_str(), pwd.c_str());
+	}
     return cmd;
 }
 
@@ -84,6 +89,19 @@ string MySqlStringHelper::GetShowUserStr(const string &username) {
 string MySqlStringHelper::GetShowGrantString(const string &username, const string &ip) {
     char cmd[1024];
     sprintf(cmd, "show grants for %s@'%s';", username.c_str(), ip.c_str());
+    return cmd;
+}
+
+string MySqlStringHelper::GetChangePwdStr(const string &username, const string &pwd) {
+    char cmd[1024];
+	sprintf(cmd, "update mysql.user SET password=password('%s') where user='%s';", 
+			pwd.c_str(), username.c_str());
+    return cmd;
+}
+
+string MySqlStringHelper::GetFlushPrivilegeStr() {
+    char cmd[1024];
+	sprintf(cmd, "flush privileges;");
     return cmd;
 }
 

@@ -10,26 +10,16 @@
 
 #pragma once
 
-#include "co_routine.h"
-#include "phxcoroutine.h"
-#include "group_status_cache.h"
-
-#include <memory>
-#include <vector>
-#include <string>
+#include <sys/socket.h>
 
 namespace phxsqlproxy {
 
-class MembershipCache : public GroupStatusCache<std::vector<std::string> > {
- public:
-    MembershipCache();
+int RoutineConnectWithTimeout(int fd, const struct sockaddr *address, socklen_t address_len, int timeout_ms);
 
-    virtual ~MembershipCache();
+int RoutineWriteWithTimeout(int dest_fd, const char * buf, int write_size, int timeout_ms);
 
-    const std::vector<std::string> & GetMembership();
+int RoutineReadWithTimeout(int source_fd, char * buf, int buf_size, int timeout_ms);
 
- private:
-    int UpdateGroupStatus(std::vector<std::string> & group_status);
-};
+int RoutinePeekWithTimeout(int source_fd, char * buf, int buf_size, int timeout_ms);
 
 }

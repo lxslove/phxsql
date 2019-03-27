@@ -45,10 +45,13 @@ void PHXBinlogSvrBaseConfig::ReadPaxosConfig() {
     paxos_port_ = GetInteger("PaxosOption", "PaxosPort", 0);
     paxos_log_num_ = GetInteger("PaxosOption", "LogNum", 1000000);
     packet_mode_ = GetInteger("PaxosOption", "PacketMode", 0);
+    udp_max_size_ = GetInteger("PaxosOption", "UDPMaxSize", 4096);
 }
 
 void PHXBinlogSvrBaseConfig::ReadAgentConfig() {
     ColorLogInfo("%s read agent config", __func__);
+
+    engine_ip_ = Get("Server", "IP", "");
     binlogsvr_port_ = GetInteger("Server", "Port", 17000);
     specified_master_ip_ = Get("Server", "SpecifiedMasterIP", "");
 
@@ -58,7 +61,9 @@ void PHXBinlogSvrBaseConfig::ReadAgentConfig() {
 
     package_name_ = Get("Server", "PackageName", "phxbinlogsvr");
 
-    engine_ip_ = GetInnerIP();
+	if(engine_ip_.empty() || engine_ip_[0]=='\0' || engine_ip_[0] == '$' )
+		engine_ip_ = GetInnerIP();
+
     engine_port_ = GetInteger("AgentOption", "AgentPort", 6000);
     event_data_base_path_ = Get("AgentOption", "EventDataDir", "");
     event_data_db_path_ = event_data_base_path_ + "/event_lb/";
@@ -109,6 +114,10 @@ int PHXBinlogSvrBaseConfig::GetPackageMode() const {
 
 uint32_t PHXBinlogSvrBaseConfig::GetPaxosLogNum() const {
     return paxos_log_num_;
+}
+
+uint32_t PHXBinlogSvrBaseConfig::GetUDPMaxSize() const {
+    return udp_max_size_;
 }
 
 uint32_t PHXBinlogSvrBaseConfig::GetMasterLeaseTime() const {
@@ -209,4 +218,3 @@ string PHXBinlogSvrBaseConfig::GetFollowIP() const {
 }
 
 }
-
